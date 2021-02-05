@@ -3,19 +3,29 @@ import datetime
 import sys
 import os
 
+def centerWindow(parent:tkinter.Tk, width:int, height:int) -> str:
+    screenWidth:int     = parent.winfo_screenwidth()
+    screenHeight:int    = parent.winfo_screenheight()
+    topCornerX:int      = int((screenWidth / 2) - (width / 2))
+    topCornerY:int      = int((screenHeight / 2) - (height / 2))
+
+    return f"{width}x{height}+{topCornerX}+{topCornerY}"
+
 class Task(object):
-    def __init__(self, name:str, created:datetime.date = datetime.date.today(), due :datetime.date = None):
+    def __init__(self, name:str, due :datetime.date = None):
         self.Name:str               = name
+        self.Created:datetime.date  = datetime.datetime.utcnow()
         self.DueDate:datetime.date  = due
+        print(self.Created.strftime(f"%d/%m/%y %H:%M:%S.%f")[:-3])
         self.Completed:bool         = tkinter.BooleanVar()
 
 
 class TaskWidget(object):
-    def __init__(self, parent, callback, task:Task) -> None:
+    def __init__(self, parent:tkinter.Tk, callback, task:Task) -> None:
         self.BoundTask = task
-        self.Frame = tkinter.Frame(parent, bg = "#EFEFEF" )
-        self.Title = tkinter.Label(self.Frame, text = task.Name, anchor = "w", padx = 20, bg = "#EFEFEF")
-        self.Check = tkinter.Checkbutton(self.Frame, variable = self.BoundTask.Completed, command = lambda : callback(), onvalue = True, padx = 7, offvalue = False, bg = "#EFEFEF")
+        self.Frame = tkinter.Frame(parent, bg = "#F9F9F9" )
+        self.Title = tkinter.Label(self.Frame, text = task.Name, anchor = "w", padx = 20, bg = "#f9f9f9")
+        self.Check = tkinter.Checkbutton(self.Frame, variable = self.BoundTask.Completed, command = lambda : callback(), onvalue = True, padx = 7, offvalue = False, bg = "#f9f9f9")
         
         if self.BoundTask.Completed == True : self.Check.select()
 
@@ -26,22 +36,30 @@ class TaskWidget(object):
 
 class TaskList(object):
     def __init__(self, parent) -> None:
-        self.Parent                         = parent
-        self.Frame                          = tkinter.Frame(parent)
-        self.CompleatedLabel:tkinter.Label  = tkinter.Label(self.Frame, text = "completed")
-        self.Tasks:dict                     = dict()
-        self.Content:tkinter.StringVar      = tkinter.StringVar()
+        self.Parent:tkinter.Tk                  = parent
+        self.ScrollingCanvas:tkinter.Canvas    = tkinter.Canvas(parent)
+        self.Scrollregion                       = tkinter.Frame(self.ScrollingCanvas)
+        self.Frame:tkinter.Frame                = tkinter.Frame(parent)
+        self.CompleatedLabel:tkinter.Label      = tkinter.Label(self.Scrollregion, text = "completed")
+        self.Tasks:dict                         = dict()
+        self.Content:tkinter.StringVar          = tkinter.StringVar()
+
+        self.Scrollregion.bind("<Configure>", lambda event : self.ScrollingCanvas.configure(scrollregion = self.ScrollingCanvas.bbox("all")))
+        self.ScrollingCanvas.create_window((0,0), window = self.Scrollregion, anchor = "nw")
+        self.ScrollingCanvas.bind_all("<MouseWheel>", lambda event : self.scrollCanvas(event))
 
         self.InitTaskCreator()
-        self.Frame.pack(fill = "x", side = "top")
+
+        self.ScrollingCanvas.pack(fill = "both", expand = 1)
+        self.Frame.pack(fill = "x")
         self.Parent.pack_propagate(0)
 
         return
 
 
     def InitTaskCreator(self) -> None:
-        self.Wrapper = tkinter.Frame(self.Parent, bg = "#DDDDDD")
-        self.Entry = tkinter.Entry(self.Wrapper, textvariable = self.Content)
+        self.Wrapper = tkinter.Frame(self.Parent, bg = "#9cf79d")
+        self.Entry = tkinter.Entry(self.Wrapper, textvariable = self.Content, highlightthickness = 0, relief = "flat")
     
         self.Parent.bind("<Return>", lambda event : self.CreateTask())
 
@@ -58,49 +76,71 @@ class TaskList(object):
 
         except Exception : pass
 
-        for task in self.Tasks.values(): 
-            if task.BoundTask.Completed.get() == False: 
-                task.Frame.pack(expand = 1, fill = "both")
-
-        self.CompleatedLabel.pack(fill = "x")
-
+        uncompleted:list    = list()
+        completed:list      = list()
+        
         for task in self.Tasks.values():
-            if task.BoundTask.Completed.get() == True: 
-                task.Frame.pack(expand = 1, fill = "both")
+            if task.BoundTask.Completed.get() == False:
+                uncompleted.append(task)
+            else:
+                completed.append(task)
+            
+            continue
 
+        for index, task in enumerate(uncompleted): 
+            task.Title.configure(fg = "#000000")
+            task.Title.configure(bg = "#EEEEEE" if (index % 2 == 0 or index == 0) else "#FFFFFF")
+            self.Parent.update_idletasks()
+            task.Frame.pack(expand = 1, fill = "both")
+
+            continue
+
+        for index, task in enumerate(completed):
+            task.Title.configure(fg = "#999999")
+            task.Title.configure(bg = "#EEEEEE" if (index % 2 == 0 or index == 0) else "#FFFFFF")
+            self.Parent.update_idletasks()
+            self.CompleatedLabel.pack(fill = "x")
+            task.Frame.pack(expand = 1, fill = "both")
+
+            continue
 
         return
 
 
-    def addTask(self, task:Task) -> None:
-        self.Tasks[task.Name] = TaskWidget(self.Frame, self.orderList, task)
+    def AddTask(self, task:Task) -> None:
+        self.Tasks[task.Created] = TaskWidget(self.Scrollregion, self.orderList, task)
         self.orderList()
 
         return
     
 
     def CreateTask(self) -> None:
-        self.addTask(Task(self.Content.get()))
-        self.Entry.delete(0, "end")
+        if len(self.Content.get()) > 1:
+            self.AddTask(Task(self.Content.get()))
+            self.Entry.delete(0, "end")
+        else:
+            self.Wrapper.configure(bg = "#FF0000")
+            self.Parent.after(25, lambda : self.Wrapper.configure(bg = "#9CF79D"))
 
         return
+
+    def scrollCanvas(self, event):
+        print("called!")
+        if sys.platform == "darwin":
+            self.ScrollingCanvas.yview_scroll(int(event.delta / 4), "units")
+        else:
+            self.ScrollingCanvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
 
 class Marrow(object):
     def __init__(self) -> None:
-        # properties 
         self.Root:tkinter.Tk    = tkinter.Tk()
         self.Width:int          = 400
         self.Height:int         = 600       
 
-        screenWidth:int         = self.Root.winfo_screenwidth()
-        screenHeight:int        = self.Root.winfo_screenheight()
-        topCornerX:int          = (screenWidth / 2) - (self.Width / 2)
-        topCornerY:int          = (screenHeight / 2) - (self.Height / 2)
-
-        self.Root.geometry(f"{self.Width}x{self.Height}+{int(topCornerX)}+{int(topCornerY)}")
+        self.Root.geometry(centerWindow(self.Root, self.Width, self.Height))
         self.Root.attributes("-topmost", True)
-        self.Root.title("Marrow (V0.0.1)")
+        self.Root.title("Marrow (V0.1.0)")
 
         self.TaskList   = TaskList(self.Root)
 
