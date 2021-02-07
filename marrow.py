@@ -1,5 +1,6 @@
 import tkinter
 import datetime
+import json
 import sys
 import os
 
@@ -11,12 +12,13 @@ def centerWindow(parent:tkinter.Tk, width:int, height:int) -> str:
 
     return f"{width}x{height}+{topCornerX}+{topCornerY}"
 
+class ConfigurationFileNotFound(Exception) : pass
+
 class Task(object):
-    def __init__(self, name:str, due :datetime.date = None):
+    def __init__(self, name:str, due :datetime.date = None) -> None:
         self.Name:str               = name
         self.Created:datetime.date  = datetime.datetime.utcnow()
         self.DueDate:datetime.date  = due
-        print(self.Created.strftime(f"%d/%m/%y %H:%M:%S.%f")[:-3])
         self.Completed:bool         = tkinter.BooleanVar()
 
 
@@ -33,14 +35,18 @@ class TaskWidget(object):
         self.Title.pack(side = "right", expand = 1, fill = "x")
         self.Check.pack(side = "left", expand = 0)
 
+        return
+
 
 class TaskList(object):
     def __init__(self, parent) -> None:
         self.Parent:tkinter.Tk                  = parent
-        self.ScrollingCanvas:tkinter.Canvas    = tkinter.Canvas(parent)
+
+        self.ScrollingCanvas:tkinter.Canvas     = tkinter.Canvas(parent, width = 200)
         self.Scrollregion                       = tkinter.Frame(self.ScrollingCanvas)
         self.Frame:tkinter.Frame                = tkinter.Frame(parent)
         self.CompleatedLabel:tkinter.Label      = tkinter.Label(self.Scrollregion, text = "completed")
+
         self.Tasks:dict                         = dict()
         self.Content:tkinter.StringVar          = tkinter.StringVar()
 
@@ -51,20 +57,22 @@ class TaskList(object):
         self.InitTaskCreator()
 
         self.ScrollingCanvas.pack(fill = "both", expand = 1)
-        self.Frame.pack(fill = "x")
+        self.Frame.pack(fill = "both", expand = 1)
         self.Parent.pack_propagate(0)
 
         return
 
 
     def InitTaskCreator(self) -> None:
-        self.Wrapper = tkinter.Frame(self.Parent, bg = "#9cf79d")
+        self.Wrapper = tkinter.Frame(self.Parent, bg = "#84bd59")
         self.Entry = tkinter.Entry(self.Wrapper, textvariable = self.Content, highlightthickness = 0, relief = "flat")
     
         self.Parent.bind("<Return>", lambda event : self.CreateTask())
 
         self.Wrapper.pack(fill = "x")
-        self.Entry.pack()
+        self.Entry.pack(pady = 10)
+
+        self.Entry.focus()
 
         return
 
@@ -90,6 +98,8 @@ class TaskList(object):
         for index, task in enumerate(uncompleted): 
             task.Title.configure(fg = "#000000")
             task.Title.configure(bg = "#EEEEEE" if (index % 2 == 0 or index == 0) else "#FFFFFF")
+            task.Title.configure(bg = "#EEEEEE" if (index % 2 == 0 or index == 0) else "#FFFFFF")
+
             self.Parent.update_idletasks()
             task.Frame.pack(expand = 1, fill = "both")
 
@@ -98,8 +108,9 @@ class TaskList(object):
         for index, task in enumerate(completed):
             task.Title.configure(fg = "#999999")
             task.Title.configure(bg = "#EEEEEE" if (index % 2 == 0 or index == 0) else "#FFFFFF")
+
             self.Parent.update_idletasks()
-            self.CompleatedLabel.pack(fill = "x")
+            self.CompleatedLabel.pack(fill = "x", pady = 15)
             task.Frame.pack(expand = 1, fill = "both")
 
             continue
@@ -118,6 +129,7 @@ class TaskList(object):
         if len(self.Content.get()) > 1:
             self.AddTask(Task(self.Content.get()))
             self.Entry.delete(0, "end")
+
         else:
             self.Wrapper.configure(bg = "#FF0000")
             self.Parent.after(25, lambda : self.Wrapper.configure(bg = "#9CF79D"))
@@ -125,28 +137,43 @@ class TaskList(object):
         return
 
     def scrollCanvas(self, event):
-        print("called!")
+        if (self.Scrollregion.winfo_height() < self.Parent.winfo_height() - self.Wrapper.winfo_height()) : return
+
         if sys.platform == "darwin":
             self.ScrollingCanvas.yview_scroll(int(event.delta / 4), "units")
         else:
             self.ScrollingCanvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
+        return
+
 
 class Marrow(object):
     def __init__(self) -> None:
+
+        if os.path.exists("config.json"):
+            with open("config.json") as configFile : self.Configuration = json.load(configFile)
+
+        else:
+            raise ConfigurationFileNotFound("Unable to build Marrow")
+
+        if self.Configuration["TaskDataFilepath"] == "" : self.MarrowSetup()
+
+
         self.Root:tkinter.Tk    = tkinter.Tk()
         self.Width:int          = 400
-        self.Height:int         = 600       
+        self.Height:int         = 600 
 
         self.Root.geometry(centerWindow(self.Root, self.Width, self.Height))
         self.Root.attributes("-topmost", True)
-        self.Root.title("Marrow (V0.1.0)")
+        self.Root.title("Marrow (V0.2.3)")
 
         self.TaskList   = TaskList(self.Root)
 
         self.Root.mainloop()
 
         return
-
+    
+    def MarrowSetup(self) -> None:
+        return
 
 if __name__ == "__main__" : program:Marrow = Marrow()
