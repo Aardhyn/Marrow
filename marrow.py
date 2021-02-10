@@ -24,40 +24,42 @@ class Task(object):
 
 class TaskWidget(object):
     def __init__(self, parent:tkinter.Tk, callback, task:Task) -> None:
-        self.BoundTask = task
-        self.Frame = tkinter.Frame(parent, bg = "#F9F9F9" )
-        self.Title = tkinter.Label(self.Frame, text = task.Name, anchor = "w", padx = 20, bg = "#f9f9f9")
-        self.Check = tkinter.Checkbutton(self.Frame, variable = self.BoundTask.Completed, command = lambda : callback(), onvalue = True, padx = 7, offvalue = False, bg = "#f9f9f9")
+        self.BoundTask  = task
+        self.Frame      = tkinter.Frame(parent, bg = "#f9f9f9")
+        self.Title      = tkinter.Label(self.Frame, text = task.Name, anchor = "w", padx = 10, bg = "#f9f9f9")
+        self.Check      = tkinter.Checkbutton(self.Frame, variable = self.BoundTask.Completed, command = lambda : callback(), onvalue = True, offvalue = False, bg = "#f9f9f9")
         
         if self.BoundTask.Completed == True : self.Check.select()
 
         self.Frame.pack(expand = 1, fill = "both")
-        self.Title.pack(side = "right", expand = 1, fill = "x")
-        self.Check.pack(side = "left", expand = 0)
+        self.Title.pack(side = "right", expand = 1, fill = "both")
+        self.Check.pack(side = "left",  expand = 0, anchor = "e")
 
         return
 
 
 class TaskList(object):
     def __init__(self, parent) -> None:
-        self.Parent:tkinter.Tk                  = parent
+        self.Parent:tkinter.Tk              = parent
 
-        self.ScrollingCanvas:tkinter.Canvas     = tkinter.Canvas(parent, width = 200)
-        self.Scrollregion                       = tkinter.Frame(self.ScrollingCanvas)
-        self.Frame:tkinter.Frame                = tkinter.Frame(parent)
-        self.CompleatedLabel:tkinter.Label      = tkinter.Label(self.Scrollregion, text = "completed")
+        self.ScrollingCanvas:tkinter.Canvas = tkinter.Canvas(parent,                width = parent.winfo_width())
+        self.Scrollregion:tkinter.Frame     = tkinter.Frame(self.ScrollingCanvas,   width = parent.winfo_width())
+        self.Frame:tkinter.Frame            = tkinter.Frame(parent)
+        self.CompletedLabel:tkinter.Label   = tkinter.Label(self.Scrollregion,      text = "completed", anchor = "w", fg = "#000000", justify = "center")
 
-        self.Tasks:dict                         = dict()
-        self.Content:tkinter.StringVar          = tkinter.StringVar()
+        self.Tasks:dict                     = dict()
+        self.TaskData:dict                  = dict()
+
+        self.Content:tkinter.StringVar      = tkinter.StringVar()
 
         self.Scrollregion.bind("<Configure>", lambda event : self.ScrollingCanvas.configure(scrollregion = self.ScrollingCanvas.bbox("all")))
         self.ScrollingCanvas.create_window((0,0), window = self.Scrollregion, anchor = "nw")
-        self.ScrollingCanvas.bind_all("<MouseWheel>", lambda event : self.scrollCanvas(event))
+        self.ScrollingCanvas.bind_all("<MouseWheel>", lambda event : self.ScrollCanvas(event))
 
         self.InitTaskCreator()
 
         self.ScrollingCanvas.pack(fill = "both", expand = 1)
-        self.Frame.pack(fill = "both", expand = 1)
+        self.Frame.pack(fill = "both")
         self.Parent.pack_propagate(0)
 
         return
@@ -77,10 +79,10 @@ class TaskList(object):
         return
 
 
-    def orderList(self) -> None:
+    def OrderList(self) -> None:
         try:
             for task in self.Tasks.values() : task.Frame.pack_forget()
-            self.CompleatedLabel.pack_forget()
+            self.CompletedLabel.pack_forget()
 
         except Exception : pass
 
@@ -96,31 +98,41 @@ class TaskList(object):
             continue
 
         for index, task in enumerate(uncompleted): 
+            background = "#EEEEEE" if (index % 2 == 0 or index == 0) else "#FFFFFF"
+
             task.Title.configure(fg = "#000000")
-            task.Title.configure(bg = "#EEEEEE" if (index % 2 == 0 or index == 0) else "#FFFFFF")
-            task.Title.configure(bg = "#EEEEEE" if (index % 2 == 0 or index == 0) else "#FFFFFF")
+            task.Frame.configure(bg = background)
+            task.Title.configure(bg = background)
+            task.Check.configure(bg = background)
 
             self.Parent.update_idletasks()
+
+            task.Title.configure(width = self.Parent.winfo_width())
             task.Frame.pack(expand = 1, fill = "both")
 
             continue
 
         for index, task in enumerate(completed):
+            background = "#EEEEEE" if (index % 2 == 0 or index == 0) else "#FFFFFF"
+
             task.Title.configure(fg = "#999999")
-            task.Title.configure(bg = "#EEEEEE" if (index % 2 == 0 or index == 0) else "#FFFFFF")
+            task.Frame.configure(bg = background)
+            task.Title.configure(bg = background)
+            task.Check.configure(bg = background)
 
             self.Parent.update_idletasks()
-            self.CompleatedLabel.pack(fill = "x", pady = 15)
+            self.CompletedLabel.pack(fill = "x", pady = 15, padx = 37)
+            task.Title.configure(width = self.Parent.winfo_width())
             task.Frame.pack(expand = 1, fill = "both")
 
-            continue
+            continue 
 
         return
 
 
     def AddTask(self, task:Task) -> None:
-        self.Tasks[task.Created] = TaskWidget(self.Scrollregion, self.orderList, task)
-        self.orderList()
+        self.Tasks[task.Created] = TaskWidget(self.Scrollregion, self.OrderList, task)
+        self.OrderList()
 
         return
     
@@ -132,11 +144,11 @@ class TaskList(object):
 
         else:
             self.Wrapper.configure(bg = "#FF0000")
-            self.Parent.after(25, lambda : self.Wrapper.configure(bg = "#9CF79D"))
+            self.Parent.after(25, lambda : self.Wrapper.configure(bg = "#84bd59"))
 
         return
 
-    def scrollCanvas(self, event):
+    def ScrollCanvas(self, event) -> None:
         if (self.Scrollregion.winfo_height() < self.Parent.winfo_height() - self.Wrapper.winfo_height()) : return
 
         if sys.platform == "darwin":
@@ -155,25 +167,25 @@ class Marrow(object):
 
         else:
             raise ConfigurationFileNotFound("Unable to build Marrow")
-
+        
         if self.Configuration["TaskDataFilepath"] == "" : self.MarrowSetup()
 
-
-        self.Root:tkinter.Tk    = tkinter.Tk()
-        self.Width:int          = 400
-        self.Height:int         = 600 
+        self.Root:tkinter.Tk        = tkinter.Tk()
+        self.Width:int              = 400
+        self.Height:int             = 600 
 
         self.Root.geometry(centerWindow(self.Root, self.Width, self.Height))
         self.Root.attributes("-topmost", True)
-        self.Root.title("Marrow (V0.2.3)")
+        self.Root.title("Marrow (beta)")
 
-        self.TaskList   = TaskList(self.Root)
+        self.Tasks:TaskList         = TaskList(self.Root)
 
         self.Root.mainloop()
 
         return
     
     def MarrowSetup(self) -> None:
+
         return
 
 if __name__ == "__main__" : program:Marrow = Marrow()
