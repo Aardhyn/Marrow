@@ -25,9 +25,9 @@ class Task(object):
 class TaskWidget(object):
     def __init__(self, parent:tkinter.Tk, callback, task:Task) -> None:
         self.BoundTask  = task
-        self.Frame      = tkinter.Frame(parent, bg = "#f9f9f9")
+        self.Frame      = tkinter.Frame(parent, bg = "#f9f9f9", highlightthickness = 0)
         self.Title      = tkinter.Label(self.Frame, text = task.Name, anchor = "w", padx = 10, bg = "#f9f9f9")
-        self.Check      = tkinter.Checkbutton(self.Frame, variable = self.BoundTask.Completed, command = lambda : callback(), onvalue = True, offvalue = False, bg = "#f9f9f9")
+        self.Check      = tkinter.Checkbutton(self.Frame, highlightthickness = 0, variable = self.BoundTask.Completed, command = lambda : callback(), onvalue = True, offvalue = False, bg = "#f9f9f9")
         
         if self.BoundTask.Completed == True : self.Check.select()
 
@@ -42,12 +42,12 @@ class TaskList(object):
     def __init__(self, parent) -> None:
         self.Parent:tkinter.Tk              = parent
 
-        self.ScrollingCanvas:tkinter.Canvas = tkinter.Canvas(parent,                width = parent.winfo_width())
+        self.ScrollingCanvas:tkinter.Canvas = tkinter.Canvas(parent,                width = parent.winfo_width(), highlightthickness = 0)
         self.Scrollregion:tkinter.Frame     = tkinter.Frame(self.ScrollingCanvas,   width = parent.winfo_width())
-        self.Frame:tkinter.Frame            = tkinter.Frame(parent)
+        self.Frame:tkinter.Frame            = tkinter.Frame(parent, highlightthickness = 0)
         self.CompletedLabel:tkinter.Label   = tkinter.Label(self.Scrollregion,      text = "completed", anchor = "w", fg = "#000000", justify = "center")
 
-        self.Tasks:dict                     = dict()
+        self.Tasks:list                     = list()
         self.TaskData:dict                  = dict()
 
         self.Content:tkinter.StringVar      = tkinter.StringVar()
@@ -81,15 +81,16 @@ class TaskList(object):
 
     def OrderList(self) -> None:
         try:
-            for task in self.Tasks.values() : task.Frame.pack_forget()
+            for task in self.Tasks : task.Frame.pack_forget()
             self.CompletedLabel.pack_forget()
 
         except Exception : pass
 
+        newTaskOrder:list   = list()
         uncompleted:list    = list()
         completed:list      = list()
         
-        for task in self.Tasks.values():
+        for task in self.Tasks:
             if task.BoundTask.Completed.get() == False:
                 uncompleted.append(task)
             else:
@@ -100,12 +101,14 @@ class TaskList(object):
         for index, task in enumerate(uncompleted): 
             background = "#EEEEEE" if (index % 2 == 0 or index == 0) else "#FFFFFF"
 
+            newTaskOrder.append(task)
+
             task.Title.configure(fg = "#000000")
             task.Frame.configure(bg = background)
             task.Title.configure(bg = background)
             task.Check.configure(bg = background)
 
-            self.Parent.update_idletasks()
+            self.Parent.update()
 
             task.Title.configure(width = self.Parent.winfo_width())
             task.Frame.pack(expand = 1, fill = "both")
@@ -115,23 +118,27 @@ class TaskList(object):
         for index, task in enumerate(completed):
             background = "#EEEEEE" if (index % 2 == 0 or index == 0) else "#FFFFFF"
 
+            newTaskOrder.append(task)
+
             task.Title.configure(fg = "#999999")
             task.Frame.configure(bg = background)
             task.Title.configure(bg = background)
             task.Check.configure(bg = background)
 
-            self.Parent.update_idletasks()
+            self.Parent.update()
             self.CompletedLabel.pack(fill = "x", pady = 15, padx = 37)
             task.Title.configure(width = self.Parent.winfo_width())
             task.Frame.pack(expand = 1, fill = "both")
 
             continue 
 
+        self.Tasks = newTaskOrder
+
         return
 
 
     def AddTask(self, task:Task) -> None:
-        self.Tasks[task.Created] = TaskWidget(self.Scrollregion, self.OrderList, task)
+        self.Tasks.append(TaskWidget(self.Scrollregion, self.OrderList, task))
         self.OrderList()
 
         return
@@ -142,7 +149,7 @@ class TaskList(object):
             self.AddTask(Task(self.Content.get()))
             self.Entry.delete(0, "end")
 
-        else:
+        elif len(self.Content.get()) != 0:
             self.Wrapper.configure(bg = "#FF0000")
             self.Parent.after(25, lambda : self.Wrapper.configure(bg = "#84bd59"))
 
@@ -171,20 +178,58 @@ class Marrow(object):
         if self.Configuration["TaskDataFilepath"] == "" : self.MarrowSetup()
 
         self.Root:tkinter.Tk        = tkinter.Tk()
+        self.ArrowKeys:tuple        = ("<Up>", "<Down>")
         self.Width:int              = 400
         self.Height:int             = 600 
+        self.cursorIndex            = -1 #(the entry box)
 
         self.Root.geometry(centerWindow(self.Root, self.Width, self.Height))
         self.Root.attributes("-topmost", True)
         self.Root.title("Marrow (beta)")
 
-        self.Tasks:TaskList         = TaskList(self.Root)
+        self.Root.bind("<space>", lambda event : self.selectTask(self.cursorIndex) if self.cursorIndex != -1 else False)
+
+        for key in self.ArrowKeys : self.Root.bind(key, lambda event : self.MoveCursor(str(event.keysym)))
+
+        self.TasksWidget:TaskList   = TaskList(self.Root)
 
         self.Root.mainloop()
 
         return
     
+
     def MarrowSetup(self) -> None:
+
+        return
+    
+
+    def MoveCursor(self, direction) -> None:
+        taskCount = len(self.TasksWidget.Tasks)
+        if taskCount < 1 : return
+
+        self.TasksWidget.OrderList()
+        self.cursorIndex += -1 if (direction == "Up") else 1
+
+        if self.cursorIndex > taskCount - 1:
+            self.cursorIndex = -1
+            self.TasksWidget.Entry.focus()
+
+            return
+
+        elif self.cursorIndex <= -1:
+            self.cursorIndex = taskCount - 1
+
+        self.selectTask(self.cursorIndex)
+
+        return
+    
+
+    def selectTask(self, index) -> None:
+        selectedWidget:TaskWidget = self.TasksWidget.Tasks[self.cursorIndex]
+        selectedWidget.Title.configure(bg = "#699c43", fg = "#FFFFFF")
+        selectedWidget.Check.configure(bg = "#699c43")
+        selectedWidget.Frame.configure(bg = "#699c43")
+        selectedWidget.Check.focus_set()
 
         return
 
