@@ -1,4 +1,5 @@
 import tkinter
+import tkinter.filedialog
 import datetime
 import json
 import sys
@@ -15,11 +16,12 @@ def centerWindow(parent:tkinter.Tk, width:int, height:int) -> str:
 class ConfigurationFileNotFound(Exception) : pass
 
 class Task(object):
-    def __init__(self, name:str, due :datetime.date = None) -> None:
+    def __init__(self, name:str, due:datetime.date = None, created = None, completed = None) -> None:
         self.Name:str               = name
-        self.Created:datetime.date  = datetime.datetime.utcnow()
         self.DueDate:datetime.date  = due
-        self.Completed:bool         = tkinter.BooleanVar()
+
+        self.Created:datetime.date  = datetime.datetime.utcnow() if created is None else created
+        self.Completed:bool         = tkinter.BooleanVar() if completed is None else completed
 
 
 class TaskWidget(object):
@@ -39,12 +41,13 @@ class TaskWidget(object):
 
 
 class TaskList(object):
-    def __init__(self, parent) -> None:
+    def __init__(self, parent, _OnNewTask = None) -> None:
         self.Parent:tkinter.Tk              = parent
+        self.NewTaskCallback                = _OnNewTask
 
         self.ScrollingCanvas:tkinter.Canvas = tkinter.Canvas(parent,                width = parent.winfo_width(), highlightthickness = 0)
         self.Scrollregion:tkinter.Frame     = tkinter.Frame(self.ScrollingCanvas,   width = parent.winfo_width())
-        self.Frame:tkinter.Frame            = tkinter.Frame(parent, highlightthickness = 0)
+        self.Frame:tkinter.Frame            = tkinter.Frame(parent,                 highlightthickness = 0)
         self.CompletedLabel:tkinter.Label   = tkinter.Label(self.Scrollregion,      text = "completed", anchor = "w", fg = "#000000", justify = "center")
 
         self.Tasks:list                     = list()
@@ -141,6 +144,8 @@ class TaskList(object):
         self.Tasks.append(TaskWidget(self.Scrollregion, self.OrderList, task))
         self.OrderList()
 
+        self.NewTaskCallback()
+
         return
     
 
@@ -175,33 +180,99 @@ class Marrow(object):
         else:
             raise ConfigurationFileNotFound("Unable to build Marrow")
         
-        if self.Configuration["TaskDataFilepath"] == "" : self.MarrowSetup()
-
         self.Root:tkinter.Tk        = tkinter.Tk()
         self.ArrowKeys:tuple        = ("<Up>", "<Down>")
+        self.StoredTasks:dict       = dict()
         self.Width:int              = 400
         self.Height:int             = 600 
         self.cursorIndex            = -1 #(the entry box)
 
         self.Root.geometry(centerWindow(self.Root, self.Width, self.Height))
-        self.Root.attributes("-topmost", True)
-        self.Root.title("Marrow (beta)")
+        self.Root.title(f"Marrow {self.Configuration['version']}")
+        self.Root.protocol("WM_DELETE_WINDOW", self.QuitMarrow)
 
         self.Root.bind("<space>", lambda event : self.selectTask(self.cursorIndex) if self.cursorIndex != -1 else False)
-
         for key in self.ArrowKeys : self.Root.bind(key, lambda event : self.MoveCursor(str(event.keysym)))
 
-        self.TasksWidget:TaskList   = TaskList(self.Root)
+        self.TasksWidget:TaskList   = TaskList(self.Root, _OnNewTask = self.SaveTasks)
+
+        if self.Configuration["TaskDataFilepath"] == "": 
+            self.MarrowSetup()
+
+        else:
+            with open(self.Configuration["TaskDataFilepath"], "r") as file : 
+                self.StoredTasks = json.load(file)
+                self.LoadStoredTasks()
+            
+        self.Root.attributes("-topmost", True)
 
         self.Root.mainloop()
 
         return
     
 
-    def MarrowSetup(self) -> None:
+    def writeConfig(self) -> None:
+        with open("config.json", "w", encoding = "utf-8") as configFile: 
+            json.dump(self.Configuration, configFile, ensure_ascii = False, indent = 4)
 
         return
-    
+
+
+    def MarrowSetup(self) -> None:
+        filepath:str = str()
+        while not filepath : filepath = tkinter.filedialog.askdirectory() + "/MarrowTasks.json"
+        self.Configuration["TaskDataFilepath"] = filepath
+
+        with open(filepath, "w+") as taskFile : json.dump({"tasks" : []}, taskFile, ensure_ascii = False, indent = 4)
+
+        self.writeConfig()
+
+        return
+
+
+    def LoadStoredTasks(self) -> None:
+        for data in self.StoredTasks["tasks"]:
+            name:str                        = data['name']
+            create                          = datetime.datetime.strptime(data['created'],   r"%Y-%m-%d %H:%M:%S.%f")
+            completed:tkinter.BooleanVar    = tkinter.BooleanVar(value = data['completed'])
+
+            try:
+                due = datetime.datetime.strptime(data['due'],       r"%Y-%m-%d %H:%M:%S.%f")
+
+            except ValueError : due = None
+
+            self.TasksWidget.AddTask(Task(name, due, created = create, completed = completed))
+
+        return
+
+
+    def SaveTasks(self) -> None:
+        print("tasks saved!")
+        self.StoredTasks = {
+            "tasks" : []
+        }
+
+        for task in self.TasksWidget.Tasks:
+            self.StoredTasks["tasks"].append({
+                "name"      : task.BoundTask.Name,
+                "created"   : str(task.BoundTask.Created),
+                "due"       : str(task.BoundTask.DueDate),
+                "completed" : task.BoundTask.Completed.get(),
+            })
+
+            continue
+
+        with open(self.Configuration["TaskDataFilepath"], "w+") as file : json.dump(self.StoredTasks, file, ensure_ascii = False, indent = 4)
+
+        return
+
+
+    def QuitMarrow(self) -> None:
+        self.SaveTasks()
+        self.Root.quit()
+
+        return
+
 
     def MoveCursor(self, direction) -> None:
         taskCount = len(self.TasksWidget.Tasks)
