@@ -1,3 +1,20 @@
 {
-    "TaskDataFilepath" : ""
+    "TaskDataFilepath": "/Users/aardhynlavender/Desktop/MarrowTasks.json",
+    "theme": {
+        "light": [
+            "#000000",
+            "#FFFFFF",
+            "#84bd59",
+            "#EEEEEE",
+            "#FFFFFF"
+        ],
+        "dark": [
+            "#000000",
+            "#FFFFFF",
+            "#84bd59",
+            "#333333",
+            "#222222"
+        ]
+    },
+    "version": "(Beta)"
 }
