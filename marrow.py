@@ -33,7 +33,7 @@ class TaskWidget(object):
         
         if self.BoundTask.Completed == True : self.Check.select()
 
-        self.Frame.pack(expand = 1, fill = "both")
+        self.Frame.grid(sticky = "w")
         self.Title.pack(side = "right", expand = 1, fill = "both")
         self.Check.pack(side = "left",  expand = 0, anchor = "e")
 
@@ -84,15 +84,16 @@ class TaskList(object):
 
     def OrderList(self) -> None:
         try:
+            # for task in self.Tasks : task.Frame.pack_forget()
             for task in self.Tasks : task.Frame.pack_forget()
-            self.CompletedLabel.pack_forget()
+            self.CompletedLabel.grid_forget()
 
         except Exception : pass
 
-        newTaskOrder:list   = list()
-        uncompleted:list    = list()
-        completed:list      = list()
-        
+        newTaskOrder:list       = list()
+        uncompleted:list        = list()
+        completed:list          = list()
+
         for task in self.Tasks:
             if task.BoundTask.Completed.get() == False:
                 uncompleted.append(task)
@@ -100,6 +101,8 @@ class TaskList(object):
                 completed.append(task)
             
             continue
+
+        uncompletedCount:int    = len(uncompleted)
 
         for index, task in enumerate(uncompleted): 
             background = "#EEEEEE" if (index % 2 == 0 or index == 0) else "#FFFFFF"
@@ -114,11 +117,15 @@ class TaskList(object):
             self.Parent.update()
 
             task.Title.configure(width = self.Parent.winfo_width())
-            task.Frame.pack(expand = 1, fill = "both")
+            task.Frame.grid(row = index, sticky = "w")
+            print(index)
 
             continue
 
+        if len(completed) != 0 : self.CompletedLabel.grid(pady = 15, padx = 37, row = uncompletedCount, sticky = "w")
+
         for index, task in enumerate(completed):
+            print(index + uncompletedCount)
             background = "#EEEEEE" if (index % 2 == 0 or index == 0) else "#FFFFFF"
 
             newTaskOrder.append(task)
@@ -129,9 +136,8 @@ class TaskList(object):
             task.Check.configure(bg = background)
 
             self.Parent.update()
-            self.CompletedLabel.pack(fill = "x", pady = 15, padx = 37)
             task.Title.configure(width = self.Parent.winfo_width())
-            task.Frame.pack(expand = 1, fill = "both")
+            task.Frame.grid(row = index + uncompletedCount + 1, sticky = "w")
 
             continue 
 
