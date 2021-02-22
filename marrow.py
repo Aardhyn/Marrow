@@ -37,6 +37,8 @@ class TaskWidget(object):
         self.Title.pack(side = "right", expand = 1, fill = "both")
         self.Check.pack(side = "left",  expand = 0, anchor = "e")
 
+        self.index = 0
+
         return
 
 
@@ -83,12 +85,6 @@ class TaskList(object):
 
 
     def OrderList(self) -> None:
-        try:
-            # for task in self.Tasks : task.Frame.pack_forget()
-            for task in self.Tasks : task.Frame.pack_forget()
-            self.CompletedLabel.grid_forget()
-
-        except Exception : pass
 
         newTaskOrder:list       = list()
         uncompleted:list        = list()
@@ -105,35 +101,33 @@ class TaskList(object):
         uncompletedCount:int    = len(uncompleted)
 
         for index, task in enumerate(uncompleted): 
-            background = "#EEEEEE" if (index % 2 == 0 or index == 0) else "#FFFFFF"
-
             newTaskOrder.append(task)
 
-            task.Title.configure(fg = "#000000")
-            task.Frame.configure(bg = background)
-            task.Title.configure(bg = background)
-            task.Check.configure(bg = background)
+            task.index = index
 
+            self.band_column(task, index)
             self.Parent.update()
 
             task.Title.configure(width = self.Parent.winfo_width())
             task.Frame.grid(row = index, sticky = "w")
-            print(index)
 
             continue
 
-        if len(completed) != 0 : self.CompletedLabel.grid(pady = 15, padx = 37, row = uncompletedCount, sticky = "w")
+        if len(completed) != 0: 
+            self.CompletedLabel.grid(pady = 15, padx = 37, row = uncompletedCount, sticky = "w")
+
+        else:
+            try: 
+                self.CompletedLabel.grid_forget()
+
+            except Exception : pass
 
         for index, task in enumerate(completed):
-            print(index + uncompletedCount)
-            background = "#EEEEEE" if (index % 2 == 0 or index == 0) else "#FFFFFF"
-
             newTaskOrder.append(task)
 
-            task.Title.configure(fg = "#999999")
-            task.Frame.configure(bg = background)
-            task.Title.configure(bg = background)
-            task.Check.configure(bg = background)
+            task.index = index
+
+            self.band_column(task, index)
 
             self.Parent.update()
             task.Title.configure(width = self.Parent.winfo_width())
@@ -142,6 +136,18 @@ class TaskList(object):
             continue 
 
         self.Tasks = newTaskOrder
+
+        return
+
+
+    def band_column(self, task:TaskWidget, index) -> None:
+        background  = "#EEEEEE" if (index % 2 == 0 or index == 0) else "#FFFFFF"
+        forground   = "#999999" if (task.BoundTask.Completed.get == False) else "#000000"
+
+        task.Title.configure(fg = forground)
+        task.Frame.configure(bg = background)
+        task.Title.configure(bg = background)
+        task.Check.configure(bg = background)
 
         return
 
@@ -166,6 +172,7 @@ class TaskList(object):
 
         return
 
+
     def ScrollCanvas(self, event) -> None:
         if (self.Scrollregion.winfo_height() < self.Parent.winfo_height() - self.Wrapper.winfo_height()) : return
 
@@ -187,7 +194,7 @@ class Marrow(object):
             raise ConfigurationFileNotFound("Unable to build Marrow")
         
         self.Root:tkinter.Tk        = tkinter.Tk()
-        self.ArrowKeys:tuple        = ("<Up>", "<Down>")
+        self.ArrowKeys:tuple        = ("<KeyRelease-Up>", "<KeyRelease-Down>")
         self.StoredTasks:dict       = dict()
         self.Width:int              = 400
         self.Height:int             = 600 
@@ -284,7 +291,8 @@ class Marrow(object):
         taskCount = len(self.TasksWidget.Tasks)
         if taskCount < 1 : return
 
-        self.TasksWidget.OrderList()
+        self.deselectTask()
+
         self.cursorIndex += -1 if (direction == "Up") else 1
 
         if self.cursorIndex > taskCount - 1:
@@ -296,12 +304,12 @@ class Marrow(object):
         elif self.cursorIndex <= -1:
             self.cursorIndex = taskCount - 1
 
-        self.selectTask(self.cursorIndex)
+        self.selectTask()
 
         return
     
 
-    def selectTask(self, index) -> None:
+    def selectTask(self) -> None:
         selectedWidget:TaskWidget = self.TasksWidget.Tasks[self.cursorIndex]
         selectedWidget.Title.configure(bg = "#699c43", fg = "#FFFFFF")
         selectedWidget.Check.configure(bg = "#699c43")
@@ -309,5 +317,12 @@ class Marrow(object):
         selectedWidget.Check.focus_set()
 
         return
+
+
+    def deselectTask(self) -> None:
+        self.TasksWidget.band_column(self.TasksWidget.Tasks[self.cursorIndex], self.cursorIndex)
+
+        return
+        
 
 if __name__ == "__main__" : program:Marrow = Marrow()
